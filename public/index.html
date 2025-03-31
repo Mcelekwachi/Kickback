@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Kickback AI Generator</title>
+</head>
+<body style="font-family: sans-serif; padding: 2rem;">
+  <h1>🎯 Kickback AI Product Generator</h1>
+  <form id="genForm">
+    <input type="text" id="handle" placeholder="@yourhandle" required />
+    <button type="submit">Generate</button>
+  </form>
+
+  <pre id="output" style="margin-top: 1rem; background: #f0f0f0; padding: 1rem;"></pre>
+
+  <script>
+    const form = document.getElementById('genForm')
+    const output = document.getElementById('output')
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault()
+      const handle = document.getElementById('handle').value
+
+      const res = await fetch('/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ handle })
+      })
+
+      const text = await res.text()
+      output.textContent = text
+    })
+  </script>
+</body>
+</html>
