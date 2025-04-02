@@ -1,33 +1,43 @@
 const express = require('express')
 const dotenv = require('dotenv')
 const path = require('path')
-
-// ✅ Use new OpenAI SDK import
 const OpenAI = require('openai')
+const admin = require('firebase-admin')
 
 dotenv.config()
 
+// ✅ Firebase Admin Setup
+const serviceAccount = JSON.parse(process.env.FIREBASE_KEY_JSON)
+
+if (!admin.apps.length) {
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount)
+  })
+}
+
+const db = admin.firestore()
+
+// ✅ Express App Setup
 const app = express()
 const port = 3000
 
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
-app.use(express.static('public')) // Serves public/index.html
+app.use(express.static('public'))
 
-// ✅ Initialize OpenAI
+// ✅ OpenAI Setup
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 })
 
-// ✅ AI Product Generator Endpoint
+// ✅ AI Product Generator Route
 app.post('/generate', async (req, res) => {
   const { handle } = req.body
 
-  // Fake content for now (we'll replace this with real scanning later)
   const fakeContent = `
-    "Just hit a new PR at the gym!"
-    "Here's my full ab workout – 10 mins no equipment."
-    "Meal prep Sunday – high protein recipes!"
+    "${handle} just hit a new PR at the gym!"
+    "${handle} shares a full ab workout – 10 mins no equipment."
+    "${handle} posts meal prep and high protein recipes!"
   `
 
   const prompt = `
@@ -51,14 +61,54 @@ app.post('/generate', async (req, res) => {
 
     const ideas = completion.choices[0]?.message?.content || '[]'
 
+    // ✅ Save to Firebase
+    await db.collection('storefronts').doc(`@${handle}`).set({
+      products: JSON.parse(ideas),
+      updatedAt: new Date().toISOString()
+    })
+
     res.send(ideas)
   } catch (error) {
     console.error('🛑 OpenAI Error:', error.message)
-
     res.status(500).json({
       error: 'AI generation failed. Please try again later.',
       details: error.message,
     })
+  }
+})
+
+// ✅ Creator Storefront Route - Load saved products
+app.get('/store/:handle', async (req, res) => {
+  const { handle } = req.params
+
+  try {
+    const doc = await db.collection('storefronts').doc(`@${handle}`).get()
+
+    if (!doc.exists) {
+      return res.status(404).send({ error: 'Creator not found' })
+    }
+
+    const data = doc.data()
+    res.send(data.products)
+  } catch (error) {
+    console.error('🛑 Firebase Fetch Error:', error.message)
+    res.status(500).send({ error: 'Failed to load products' })
+  }
+})
+app.post('/save', async (req, res) => {
+  const { handle, products } = req.body
+  const docId = handle.startsWith('@') ? handle : '@' + handle
+
+  try {
+    await db.collection('storefronts').doc(docId).set({
+      products,
+      updatedAt: new Date().toISOString()
+    })
+
+    res.send({ success: true })
+  } catch (error) {
+    console.error('🛑 Save Error:', error.message)
+    res.status(500).json({ error: 'Failed to save products' })
   }
 })
 

@@ -2,33 +2,106 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Kickback AI Generator</title>
+  <title>Kickback AI Store Generator</title>
+  <style>
+    body { font-family: 'Segoe UI', sans-serif; background: #f7f7f7; padding: 2rem; }
+    h1 { font-size: 1.6rem; margin-bottom: 1rem; }
+    input, button, textarea {
+      padding: 0.5rem;
+      font-size: 1rem;
+      margin-bottom: 1rem;
+      width: 100%;
+      max-width: 500px;
+    }
+    .products { margin-top: 2rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; }
+    .card {
+      background: white;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      padding: 1rem;
+    }
+    textarea {
+      resize: vertical;
+      height: 60px;
+    }
+    #saveBtn {
+      margin-top: 2rem;
+      padding: 0.75rem 1.5rem;
+      font-weight: bold;
+    }
+  </style>
 </head>
-<body style="font-family: sans-serif; padding: 2rem;">
-  <h1>🎯 Kickback AI Product Generator</h1>
+<body>
+  <h1>🧠 Generate Your AI Product Ideas</h1>
   <form id="genForm">
-    <input type="text" id="handle" placeholder="@yourhandle" required />
-    <button type="submit">Generate</button>
+    <input type="text" id="handle" placeholder="yourhandle (no @ needed)" required />
+    <button type="submit">Generate Store</button>
   </form>
 
-  <pre id="output" style="margin-top: 1rem; background: #f0f0f0; padding: 1rem;"></pre>
+  <div class="products" id="products"></div>
+  <button id="saveBtn" style="display: none;">💾 Save My Store</button>
 
   <script>
     const form = document.getElementById('genForm')
-    const output = document.getElementById('output')
+    const productsDiv = document.getElementById('products')
+    const saveBtn = document.getElementById('saveBtn')
+    let currentHandle = ''
+    let currentProducts = []
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault()
-      const handle = document.getElementById('handle').value
+      currentHandle = document.getElementById('handle').value.trim()
+      currentHandle = currentHandle.startsWith('@') ? currentHandle : '@' + currentHandle
 
       const res = await fetch('/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ handle })
+        body: JSON.stringify({ handle: currentHandle.replace('@', '') })
       })
 
-      const text = await res.text()
-      output.textContent = text
+      const raw = await res.text()
+
+      try {
+        currentProducts = JSON.parse(raw)
+        renderEditableProducts(currentProducts)
+        saveBtn.style.display = 'inline-block'
+      } catch (err) {
+        productsDiv.innerHTML = '<p>Something went wrong. Try again.</p>'
+        console.error(err)
+      }
+    })
+
+    function renderEditableProducts(products) {
+      productsDiv.innerHTML = ''
+      products.forEach((product, i) => {
+        const card = document.createElement('div')
+        card.className = 'card'
+        card.innerHTML = `
+          <input type="text" value="${product.title}" id="title-${i}" />
+          <textarea id="desc-${i}">${product.description}</textarea>
+        `
+        productsDiv.appendChild(card)
+      })
+    }
+
+    saveBtn.addEventListener('click', async () => {
+      const updated = currentProducts.map((_, i) => ({
+        title: document.getElementById(`title-${i}`).value,
+        description: document.getElementById(`desc-${i}`).value
+      }))
+
+      const res = await fetch('/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ handle: currentHandle.replace('@', ''), products: updated })
+      })
+
+      if (res.ok) {
+        alert('🎉 Store saved! Visit your storefront now.')
+        window.location.href = `/store/${currentHandle.replace('@', '')}`
+      } else {
+        alert('Something went wrong while saving.')
+      }
     })
   </script>
 </body>
