@@ -32,7 +32,10 @@ const openai = new OpenAI({
 
 // ✅ AI Product Generator Route
 app.post('/generate', async (req, res) => {
-  const { handle } = req.body
+  let { handle, bio } = req.body
+
+  handle = handle.trim()
+  bio = bio?.trim() || 'This creator shares helpful and engaging content online.'
 
   const fakeContent = `
     "${handle} just hit a new PR at the gym!"
@@ -41,15 +44,20 @@ app.post('/generate', async (req, res) => {
   `
 
   const prompt = `
-    Based on the following creator content:
-    ${fakeContent}
+You are a digital product strategist helping online creators.
 
-    Suggest 3 digital micro-products they could sell.
-    Format as JSON:
-    [
-      { "title": "...", "description": "..." },
-      ...
-    ]
+This creator’s bio: "${bio}"
+
+Their recent content includes:
+${fakeContent}
+
+Suggest 3 simple digital micro-products they could sell to their audience.
+
+Format as JSON:
+[
+  { "title": "...", "description": "..." },
+  ...
+]
   `
 
   try {
@@ -60,10 +68,11 @@ app.post('/generate', async (req, res) => {
     })
 
     const ideas = completion.choices[0]?.message?.content || '[]'
+    const parsed = JSON.parse(ideas)
 
-    // ✅ Save to Firebase
+    // ✅ Save generated ideas (without images — they'll edit later)
     await db.collection('storefronts').doc(`@${handle}`).set({
-      products: JSON.parse(ideas),
+      products: parsed,
       updatedAt: new Date().toISOString()
     })
 
@@ -95,6 +104,8 @@ app.get('/store/:handle', async (req, res) => {
     res.status(500).send({ error: 'Failed to load products' })
   }
 })
+
+// ✅ Save Edited Products Route (includes image field)
 app.post('/save', async (req, res) => {
   const { handle, products } = req.body
   const docId = handle.startsWith('@') ? handle : '@' + handle
@@ -103,7 +114,7 @@ app.post('/save', async (req, res) => {
     await db.collection('storefronts').doc(docId).set({
       products,
       updatedAt: new Date().toISOString()
-    })
+    }, { merge: true })
 
     res.send({ success: true })
   } catch (error) {
@@ -111,6 +122,24 @@ app.post('/save', async (req, res) => {
     res.status(500).json({ error: 'Failed to save products' })
   }
 })
+app.post('/autobio', async (req, res) => {
+  const { prompt } = req.body
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-3.5-turbo',
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.6,
+    })
+
+    const text = completion.choices[0]?.message?.content || ''
+    res.send({ text })
+  } catch (error) {
+    console.error('🛑 AutoBio Error:', error.message)
+    res.status(500).send({ error: 'Auto bio generation failed.' })
+  }
+})
+
 
 // ✅ Start Server
 app.listen(port, () => {

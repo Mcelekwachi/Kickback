@@ -35,8 +35,13 @@
   <h1>🧠 Generate Your AI Product Ideas</h1>
   <form id="genForm">
     <input type="text" id="handle" placeholder="yourhandle (no @ needed)" required />
+    <label for="bio">Describe your content</label><br>
+    <textarea id="bio" placeholder="E.g. I post gym tips, meal prep, and motivational content" rows="3"></textarea><br>
+    <button type="button" id="autoFillBio">🧠 Let AI Suggest My Bio</button>
+
     <button type="submit">Generate Store</button>
   </form>
+
 
   <div class="products" id="products"></div>
   <button id="saveBtn" style="display: none;">💾 Save My Store</button>
@@ -56,7 +61,11 @@
       const res = await fetch('/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ handle: currentHandle.replace('@', '') })
+        body: JSON.stringify({
+          handle: currentHandle.replace('@', ''),
+          bio: document.getElementById('bio').value.trim()
+        })
+
       })
 
       const raw = await res.text()
@@ -77,9 +86,11 @@
         const card = document.createElement('div')
         card.className = 'card'
         card.innerHTML = `
-          <input type="text" value="${product.title}" id="title-${i}" />
-          <textarea id="desc-${i}">${product.description}</textarea>
+          <input type="text" id="title-${i}" value="${product.title}" class="title" />
+          <textarea id="desc-${i}" class="description">${product.description}</textarea>
+          <input type="text" id="image-${i}" value="${product.image || ''}" class="image" placeholder="Image URL (optional)" />
         `
+
         productsDiv.appendChild(card)
       })
     }
@@ -87,8 +98,10 @@
     saveBtn.addEventListener('click', async () => {
       const updated = currentProducts.map((_, i) => ({
         title: document.getElementById(`title-${i}`).value,
-        description: document.getElementById(`desc-${i}`).value
+        description: document.getElementById(`desc-${i}`).value,
+        image: document.getElementById(`image-${i}`).value
       }))
+
 
       const res = await fetch('/save', {
         method: 'POST',
@@ -103,6 +116,43 @@
         alert('Something went wrong while saving.')
       }
     })
+    document.getElementById('autoFillBio').addEventListener('click', async () => {
+      const handle = document.getElementById('handle').value.trim()
+      if (!handle) {
+        alert("Please enter your handle first.")
+        return
+      }
+
+      const fakeScan = `
+        "${handle} just shared a comedy skit that went viral."
+        "${handle} posts hilarious reactions and trending sounds."
+        "${handle} replies to fans with funny comments and memes."
+      `
+
+      const aiPrompt = `
+    You are an assistant that summarizes creator content in 1-2 sentences.
+
+    Here are some sample posts by ${handle}:
+    ${fakeScan}
+
+    Write a short, fun bio describing their content.
+    `
+
+      try {
+        const response = await fetch('/autobio', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt: aiPrompt })
+        })
+
+        const data = await response.json()
+        document.getElementById('bio').value = data.text
+      } catch (err) {
+        alert("⚠️ Couldn’t generate bio. Try again.")
+        console.error(err)
+      }
+    })
+
   </script>
 </body>
 </html>
