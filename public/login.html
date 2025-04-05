@@ -23,6 +23,19 @@
       min-height: 24px;
     }
   </style>
+
+  <!-- ✅ Load Config First -->
+  <script src="/config.js"></script>
+
+  <!-- ✅ Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
+
+  <script>
+    // ✅ Initialize Firebase using config.js
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+  </script>
 </head>
 
 <body>
@@ -35,100 +48,83 @@
   <button onclick="login()">Login</button>
   <button onclick="signup()">Sign Up</button>
 
-  <!-- Firebase SDKs -->
-  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
-
   <script>
-    // Your Kickback web app's Firebase configuration
-    const firebaseConfig = {
-      apiKey: "AIzaSyBzNR3ooG0WDQGwcPsvKcwH81df4J-K7HM",
-      authDomain: "kickback-52b47.firebaseapp.com",
-      projectId: "kickback-52b47",
-      storageBucket: "kickback-52b47.appspot.com",
-      messagingSenderId: "70792222176",
-      appId: "1:70792222176:web:18d9d819a53f9790214785"
-    }
-
-    firebase.initializeApp(firebaseConfig)
-    const auth = firebase.auth()
-
     // Helper functions
     function showError(message) {
-      const msgDiv = document.getElementById('errorMsg')
-      msgDiv.innerText = message
-      msgDiv.style.color = 'red'
+      const msgDiv = document.getElementById('errorMsg');
+      msgDiv.innerText = message;
+      msgDiv.style.color = 'red';
     }
 
     function showSuccess(message) {
-      const msgDiv = document.getElementById('errorMsg')
-      msgDiv.innerText = message
-      msgDiv.style.color = 'green'
+      const msgDiv = document.getElementById('errorMsg');
+      msgDiv.innerText = message;
+      msgDiv.style.color = 'green';
     }
 
     function login() {
-      const email = document.getElementById('email').value
-      const password = document.getElementById('password').value
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
 
       auth.signInWithEmailAndPassword(email, password)
         .then((userCredential) => {
-          showSuccess("🎉 Logged in successfully! Redirecting...")
-          console.log(userCredential.user)
+          showSuccess("🎉 Logged in successfully! Redirecting...");
+          console.log(userCredential.user);
 
           // ✅ Redirect after short delay
           setTimeout(() => {
-            window.location.href = "/index.html"
-          }, 1000)
+            window.location.href = "/index.html";
+          }, 1000);
         })
         .catch((error) => {
-          showError(error.message)
-        })
+          showError(error.message);
+        });
     }
 
     function signup() {
-      const email = document.getElementById('email').value
-      const password = document.getElementById('password').value
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
 
       auth.createUserWithEmailAndPassword(email, password)
         .then((userCredential) => {
-          showSuccess("🎉 Account created! Please verify your email.")
-          console.log(userCredential.user)
+          showSuccess("🎉 Account created! Please verify your email.");
+          console.log(userCredential.user);
 
           userCredential.user.sendEmailVerification()
             .then(() => {
-              console.log("📩 Verification email sent!")
+              console.log("📩 Verification email sent!");
             })
             .catch((error) => {
-              console.error("Failed to send verification email:", error)
-            })
+              console.error("Failed to send verification email:", error);
+            });
         })
         .catch((error) => {
-          showError(error.message)
-        })
+          showError(error.message);
+        });
     }
 
-    // Monitor auth state (optional)
+    // Monitor auth state (optional, for debugging)
     auth.onAuthStateChanged((user) => {
       if (user) {
-        console.log("User is signed in:", user.email)
+        console.log("User is signed in:", user.email);
       } else {
-        console.log("No user signed in.")
+        console.log("No user signed in.");
       }
-    })
+    });
 
     // Allow Enter key to trigger login
     document.addEventListener('keydown', function(event) {
       if (event.key === 'Enter') {
-        event.preventDefault()
+        event.preventDefault();
 
-        const email = document.getElementById('email').value
-        const password = document.getElementById('password').value
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
 
         if (email && password) {
-          login()
+          login();
         }
       }
-    })
+    });
   </script>
 </body>
 </html>
