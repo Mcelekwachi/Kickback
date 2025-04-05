@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <title>Kickback AI Store Generator</title>
+
   <style>
     body { font-family: 'Segoe UI', sans-serif; background: #f7f7f7; padding: 2rem; }
     h1 { font-size: 1.6rem; margin-bottom: 1rem; }
@@ -29,19 +30,63 @@
       padding: 0.75rem 1.5rem;
       font-weight: bold;
     }
+    #logoutBtn {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: #000;
+      color: #fff;
+      padding: 0.5rem 1rem;
+      border: none;
+      border-radius: 6px;
+      font-weight: bold;
+      cursor: pointer;
+      display: none;
+    }
   </style>
+
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyBzNR3ooG0WDQGwcPsvKcwH81df4J-K7HM",
+      authDomain: "kickback-52b47.firebaseapp.com",
+      projectId: "kickback-52b47",
+      storageBucket: "kickback-52b47.appspot.com",
+      messagingSenderId: "70792222176",
+      appId: "1:70792222176:web:18d9d819a53f9790214785"
+    }
+
+    firebase.initializeApp(firebaseConfig)
+    const auth = firebase.auth()
+
+    // 🔐 Protect Page: Only allow logged-in users
+    auth.onAuthStateChanged((user) => {
+      if (!user) {
+        alert("🔒 Please login first!")
+        window.location.href = "/login.html"
+      } else {
+        console.log("✅ Logged in as:", user.email)
+        document.getElementById('logoutBtn').style.display = 'block'
+      }
+    })
+  </script>
 </head>
+
 <body>
+  <button id="logoutBtn">Logout</button>
+
   <h1>🧠 Generate Your AI Product Ideas</h1>
+
   <form id="genForm">
     <input type="text" id="handle" placeholder="yourhandle (no @ needed)" required />
     <label for="bio">Describe your content</label><br>
     <textarea id="bio" placeholder="E.g. I post gym tips, meal prep, and motivational content" rows="3"></textarea><br>
     <button type="button" id="autoFillBio">🧠 Let AI Suggest My Bio</button>
-
     <button type="submit">Generate Store</button>
   </form>
-
 
   <div class="products" id="products"></div>
   <button id="saveBtn" style="display: none;">💾 Save My Store</button>
@@ -52,6 +97,18 @@
     const saveBtn = document.getElementById('saveBtn')
     let currentHandle = ''
     let currentProducts = []
+
+    // Logout Logic
+    document.getElementById('logoutBtn').addEventListener('click', () => {
+      auth.signOut()
+        .then(() => {
+          alert("👋 Logged out.")
+          window.location.href = "/login.html"
+        })
+        .catch((error) => {
+          alert(error.message)
+        })
+    })
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault()
@@ -65,7 +122,6 @@
           handle: currentHandle.replace('@', ''),
           bio: document.getElementById('bio').value.trim()
         })
-
       })
 
       const raw = await res.text()
@@ -90,7 +146,6 @@
           <textarea id="desc-${i}" class="description">${product.description}</textarea>
           <input type="text" id="image-${i}" value="${product.image || ''}" class="image" placeholder="Image URL (optional)" />
         `
-
         productsDiv.appendChild(card)
       })
     }
@@ -101,7 +156,6 @@
         description: document.getElementById(`desc-${i}`).value,
         image: document.getElementById(`image-${i}`).value
       }))
-
 
       const res = await fetch('/save', {
         method: 'POST',
@@ -116,6 +170,7 @@
         alert('Something went wrong while saving.')
       }
     })
+
     document.getElementById('autoFillBio').addEventListener('click', async () => {
       const handle = document.getElementById('handle').value.trim()
       if (!handle) {
@@ -130,13 +185,13 @@
       `
 
       const aiPrompt = `
-    You are an assistant that summarizes creator content in 1-2 sentences.
+You are an assistant that summarizes creator content in 1-2 sentences.
 
-    Here are some sample posts by ${handle}:
-    ${fakeScan}
+Here are some sample posts by ${handle}:
+${fakeScan}
 
-    Write a short, fun bio describing their content.
-    `
+Write a short, fun bio describing their content.
+      `
 
       try {
         const response = await fetch('/autobio', {
@@ -152,7 +207,6 @@
         console.error(err)
       }
     })
-
   </script>
 </body>
 </html>
