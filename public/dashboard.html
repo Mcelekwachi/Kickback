@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Kickback Creator Dashboard</title>
+  <style>
+    body { font-family: 'Segoe UI', sans-serif; background: #f5f5f5; padding: 2rem; }
+    h1 { font-size: 1.8rem; margin-bottom: 1rem; }
+    #logoutBtn {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: #000;
+      color: #fff;
+      padding: 0.5rem 1rem;
+      border: none;
+      border-radius: 6px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    #profilePic {
+      width: 100px;
+      height: 100px;
+      border-radius: 50%;
+      object-fit: cover;
+      margin-bottom: 1rem;
+    }
+    .badge {
+      display: inline-block;
+      background: gold;
+      color: #000;
+      padding: 0.3rem 0.6rem;
+      border-radius: 8px;
+      margin-right: 0.5rem;
+      font-weight: bold;
+    }
+    #qrCode {
+      margin-top: 1rem;
+    }
+    .stats, .tips, .products {
+      margin-top: 2rem;
+    }
+    .product-card {
+      background: white;
+      padding: 1rem;
+      margin-bottom: 1rem;
+      border-radius: 8px;
+      box-shadow: 0 0 5px rgba(0,0,0,0.1);
+    }
+  </style>
+
+  <!-- Firebase SDKs -->
+  <script src="/config.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-storage-compat.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script> <!-- For QR Code -->
+
+  <script>
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const storage = firebase.storage();
+    let currentUID = null;
+
+    auth.onAuthStateChanged((user) => {
+      if (!user) {
+        alert("🔒 Please login first!");
+        window.location.href = "/login.html";
+      } else {
+        console.log("✅ Logged in as:", user.email);
+        document.getElementById('welcome').innerText = `👋 Welcome, ${user.email.split('@')[0]}!`;
+        currentUID = user.uid;
+
+        generateQRCode(currentUID);
+        loadProducts(currentUID);
+      }
+    });
+
+    function logout() {
+      auth.signOut()
+        .then(() => {
+          alert("👋 Logged out.");
+          window.location.href = "/login.html";
+        })
+        .catch((error) => {
+          alert(error.message);
+        });
+    }
+
+    function uploadProfilePic(event) {
+      const file = event.target.files[0];
+      if (file && currentUID) {
+        const userPicRef = storage.ref(`profilePics/${currentUID}`);
+
+        userPicRef.put(file)
+          .then(snapshot => snapshot.ref.getDownloadURL())
+          .then(url => {
+            document.getElementById('profilePic').src = url;
+            alert("✅ Profile picture uploaded!");
+          })
+          .catch(err => {
+            console.error(err);
+            alert("❌ Failed to upload profile picture.");
+          });
+      }
+    }
+
+    function generateQRCode(uid) {
+      const qr = new QRious({
+        element: document.getElementById('qrCode'),
+        value: window.location.origin + `/store/${uid}`,
+        size: 150,
+      });
+    }
+
+    function loadProducts(uid) {
+      fetch(`/store/${uid}`)
+        .then(res => res.json())
+        .then(products => {
+          const container = document.getElementById('productList');
+          container.innerHTML = '';
+
+          if (!Array.isArray(products) || products.length === 0) {
+            container.innerHTML = '<p>No products yet. Start adding!</p>';
+            return;
+          }
+
+          products.forEach((product, index) => {
+            const card = document.createElement('div');
+            card.className = 'product-card';
+
+            card.innerHTML = `
+              <h4>${product.title}</h4>
+              <p>${product.description}</p>
+              ${product.image ? `<img src="${product.image}" style="width:100%; height:auto; margin-top: 0.5rem;">` : ''}
+            `;
+
+            container.appendChild(card);
+          });
+        })
+        .catch(err => {
+          console.error(err);
+          document.getElementById('productList').innerHTML = '<p>Failed to load products.</p>';
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('addProductBtn').addEventListener('click', () => {
+        const title = prompt("Enter product title:");
+        const description = prompt("Enter product description:");
+
+        if (title && description && currentUID) {
+          fetch('/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              uid: currentUID,
+              products: [{ title, description, image: "" }]
+            })
+          })
+          .then(res => {
+            if (res.ok) {
+              alert("✅ Product added!");
+              loadProducts(currentUID);
+            } else {
+              alert("❌ Failed to add product.");
+            }
+          });
+        }
+      });
+    });
+  </script>
+</head>
+
+<body>
+  <button id="logoutBtn" onclick="logout()">Logout</button>
+
+  <h1 id="welcome">👋 Welcome!</h1>
+
+  <!-- Profile Section -->
+  <img id="profilePic" src="https://via.placeholder.com/100" alt="Profile Picture">
+  <input type="file" accept="image/*" onchange="uploadProfilePic(event)" />
+
+  <!-- Badges Section -->
+  <div style="margin-top: 1rem;">
+    <span class="badge">🏆 Top Seller</span>
+    <span class="badge">🚀 Viral Creator</span>
+  </div>
+
+  <!-- QR Code Section -->
+  <canvas id="qrCode"></canvas>
+
+  <!-- Products Section -->
+  <div class="products">
+    <h3>🛍️ Your Products:</h3>
+    <div id="productList"></div>
+    <button id="addProductBtn" style="margin-top: 1rem;">➕ Add New Product</button>
+  </div>
+
+  <!-- Stats Section -->
+  <div class="stats">
+    <h3>📈 Your Stats:</h3>
+    <p>Views: 1,204</p>
+    <p>Tips Received: $150</p>
+    <p>Products Sold: 32</p>
+  </div>
+
+  <!-- Tips Section -->
+  <div class="tips">
+    <h3>💬 Recent Tips:</h3>
+    <ul>
+      <li>🤑 $5 from @johnfitness</li>
+      <li>🤑 $10 from @comedyfan</li>
+    </ul>
+  </div>
+
+</body>
+</html>
