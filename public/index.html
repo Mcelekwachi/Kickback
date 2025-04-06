@@ -45,38 +45,37 @@
     }
   </style>
 
+  <!-- Load Config First -->
+  <script src="/config.js"></script>
+
   <!-- Firebase SDKs -->
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
 
   <script>
-    const firebaseConfig = {
-      apiKey: "AIzaSyBzNR3ooG0WDQGwcPsvKcwH81df4J-K7HM",
-      authDomain: "kickback-52b47.firebaseapp.com",
-      projectId: "kickback-52b47",
-      storageBucket: "kickback-52b47.appspot.com",
-      messagingSenderId: "70792222176",
-      appId: "1:70792222176:web:18d9d819a53f9790214785"
-    }
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    let currentUID = null; // 👈 Store user UID globally
 
-    firebase.initializeApp(firebaseConfig)
-    const auth = firebase.auth()
-
-    // 🔐 Protect Page: Only allow logged-in users
     auth.onAuthStateChanged((user) => {
       if (!user) {
-        alert("🔒 Please login first!")
-        window.location.href = "/login.html"
+        alert("🔒 Please login first!");
+        window.location.href = "/login.html";
       } else {
-        console.log("✅ Logged in as:", user.email)
-        document.getElementById('logoutBtn').style.display = 'block'
+        console.log("✅ Logged in as:", user.email);
+        currentUID = user.uid; // ✅ Save UID
+        document.getElementById('logoutBtn').style.display = 'block';
+        document.getElementById('welcomeMsg').innerText = `👋 Welcome back, ${user.email.split('@')[0]}!`;
+
       }
-    })
+    });
   </script>
 </head>
 
 <body>
   <button id="logoutBtn">Logout</button>
+  <div id="welcomeMsg" style="font-weight: bold; margin-bottom: 2rem;"></div>
+
 
   <h1>🧠 Generate Your AI Product Ideas</h1>
 
@@ -92,28 +91,28 @@
   <button id="saveBtn" style="display: none;">💾 Save My Store</button>
 
   <script>
-    const form = document.getElementById('genForm')
-    const productsDiv = document.getElementById('products')
-    const saveBtn = document.getElementById('saveBtn')
-    let currentHandle = ''
-    let currentProducts = []
+    const form = document.getElementById('genForm');
+    const productsDiv = document.getElementById('products');
+    const saveBtn = document.getElementById('saveBtn');
+    let currentHandle = '';
+    let currentProducts = [];
 
-    // Logout Logic
+    // 🔥 Logout Logic
     document.getElementById('logoutBtn').addEventListener('click', () => {
       auth.signOut()
         .then(() => {
-          alert("👋 Logged out.")
-          window.location.href = "/login.html"
+          alert("👋 Logged out.");
+          window.location.href = "/login.html";
         })
         .catch((error) => {
-          alert(error.message)
-        })
-    })
+          alert(error.message);
+        });
+    });
 
     form.addEventListener('submit', async (e) => {
-      e.preventDefault()
-      currentHandle = document.getElementById('handle').value.trim()
-      currentHandle = currentHandle.startsWith('@') ? currentHandle : '@' + currentHandle
+      e.preventDefault();
+      currentHandle = document.getElementById('handle').value.trim();
+      currentHandle = currentHandle.startsWith('@') ? currentHandle : '@' + currentHandle;
 
       const res = await fetch('/generate', {
         method: 'POST',
@@ -122,32 +121,32 @@
           handle: currentHandle.replace('@', ''),
           bio: document.getElementById('bio').value.trim()
         })
-      })
+      });
 
-      const raw = await res.text()
+      const raw = await res.text();
 
       try {
-        currentProducts = JSON.parse(raw)
-        renderEditableProducts(currentProducts)
-        saveBtn.style.display = 'inline-block'
+        currentProducts = JSON.parse(raw);
+        renderEditableProducts(currentProducts);
+        saveBtn.style.display = 'inline-block';
       } catch (err) {
-        productsDiv.innerHTML = '<p>Something went wrong. Try again.</p>'
-        console.error(err)
+        productsDiv.innerHTML = '<p>Something went wrong. Try again.</p>';
+        console.error(err);
       }
-    })
+    });
 
     function renderEditableProducts(products) {
-      productsDiv.innerHTML = ''
+      productsDiv.innerHTML = '';
       products.forEach((product, i) => {
-        const card = document.createElement('div')
-        card.className = 'card'
+        const card = document.createElement('div');
+        card.className = 'card';
         card.innerHTML = `
           <input type="text" id="title-${i}" value="${product.title}" class="title" />
           <textarea id="desc-${i}" class="description">${product.description}</textarea>
           <input type="text" id="image-${i}" value="${product.image || ''}" class="image" placeholder="Image URL (optional)" />
-        `
-        productsDiv.appendChild(card)
-      })
+        `;
+        productsDiv.appendChild(card);
+      });
     }
 
     saveBtn.addEventListener('click', async () => {
@@ -155,34 +154,39 @@
         title: document.getElementById(`title-${i}`).value,
         description: document.getElementById(`desc-${i}`).value,
         image: document.getElementById(`image-${i}`).value
-      }))
+      }));
+
+      if (!currentUID) {
+        alert("🔒 Please login to save your store.");
+        return;
+      }
 
       const res = await fetch('/save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ handle: currentHandle.replace('@', ''), products: updated })
-      })
+        body: JSON.stringify({ uid: currentUID, products: updated }) // ✅ Send UID
+      });
 
       if (res.ok) {
-        alert('🎉 Store saved! Visit your storefront now.')
-        window.location.href = `/store/${currentHandle.replace('@', '')}`
+        alert('🎉 Store saved! Visit your storefront now.');
+        window.location.href = `/store/${currentUID}`; // ✅ Redirect to /store/UID
       } else {
-        alert('Something went wrong while saving.')
+        alert('Something went wrong while saving.');
       }
-    })
+    });
 
     document.getElementById('autoFillBio').addEventListener('click', async () => {
-      const handle = document.getElementById('handle').value.trim()
+      const handle = document.getElementById('handle').value.trim();
       if (!handle) {
-        alert("Please enter your handle first.")
-        return
+        alert("Please enter your handle first.");
+        return;
       }
 
       const fakeScan = `
         "${handle} just shared a comedy skit that went viral."
         "${handle} posts hilarious reactions and trending sounds."
         "${handle} replies to fans with funny comments and memes."
-      `
+      `;
 
       const aiPrompt = `
 You are an assistant that summarizes creator content in 1-2 sentences.
@@ -191,22 +195,22 @@ Here are some sample posts by ${handle}:
 ${fakeScan}
 
 Write a short, fun bio describing their content.
-      `
+      `;
 
       try {
         const response = await fetch('/autobio', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ prompt: aiPrompt })
-        })
+        });
 
-        const data = await response.json()
-        document.getElementById('bio').value = data.text
+        const data = await response.json();
+        document.getElementById('bio').value = data.text;
       } catch (err) {
-        alert("⚠️ Couldn’t generate bio. Try again.")
-        console.error(err)
+        alert("⚠️ Couldn’t generate bio. Try again.");
+        console.error(err);
       }
-    })
+    });
   </script>
 </body>
 </html>
