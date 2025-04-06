@@ -4,8 +4,16 @@
   <meta charset="UTF-8">
   <title>Kickback Creator Dashboard</title>
   <style>
-    body { font-family: 'Segoe UI', sans-serif; background: #f5f5f5; padding: 2rem; }
-    h1 { font-size: 1.8rem; margin-bottom: 1rem; }
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f5f5f5;
+      padding: 2rem;
+      margin: 0;
+    }
+    h1 {
+      font-size: 1.8rem;
+      margin-bottom: 1rem;
+    }
     #logoutBtn {
       position: fixed;
       top: 20px;
@@ -17,13 +25,19 @@
       border-radius: 6px;
       font-weight: bold;
       cursor: pointer;
+      transition: background 0.3s ease;
+    }
+    #logoutBtn:hover {
+      background: #333;
     }
     #profilePic {
-      width: 100px;
-      height: 100px;
+      width: 110px;
+      height: 110px;
       border-radius: 50%;
       object-fit: cover;
-      margin-bottom: 1rem;
+      margin-bottom: 0.5rem;
+      display: block;
+      border: 2px solid #ccc;
     }
     .badge {
       display: inline-block;
@@ -34,18 +48,40 @@
       margin-right: 0.5rem;
       font-weight: bold;
     }
-    #qrCode {
+    #uploadBtn {
+      display: none;
+      margin-top: 0.5rem;
+      background: #007BFF;
+      color: white;
+      border: none;
+      padding: 0.5rem 1rem;
+      border-radius: 5px;
+      cursor: pointer;
+      font-weight: bold;
+      transition: background 0.3s ease;
+    }
+    #uploadBtn:hover {
+      background: #0056b3;
+    }
+    #addProductBtn {
       margin-top: 1rem;
+      background: #28a745;
+      color: white;
+      border: none;
+      padding: 0.5rem 1rem;
+      border-radius: 5px;
+      cursor: pointer;
+      font-weight: bold;
+      transition: background 0.3s ease;
+    }
+    #addProductBtn:hover {
+      background: #1e7e34;
     }
     .stats, .tips, .products {
       margin-top: 2rem;
     }
-    .product-card {
-      background: white;
-      padding: 1rem;
-      margin-bottom: 1rem;
-      border-radius: 8px;
-      box-shadow: 0 0 5px rgba(0,0,0,0.1);
+    #qrCode {
+      margin-top: 1rem;
     }
   </style>
 
@@ -54,13 +90,14 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-storage-compat.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script> <!-- For QR Code -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script> <!-- QR Code -->
 
   <script>
     firebase.initializeApp(firebaseConfig);
     const auth = firebase.auth();
     const storage = firebase.storage();
     let currentUID = null;
+    let selectedFile = null;
 
     auth.onAuthStateChanged((user) => {
       if (!user) {
@@ -70,9 +107,8 @@
         console.log("✅ Logged in as:", user.email);
         document.getElementById('welcome').innerText = `👋 Welcome, ${user.email.split('@')[0]}!`;
         currentUID = user.uid;
-
         generateQRCode(currentUID);
-        loadProducts(currentUID);
+        loadProfilePic(currentUID);
       }
     });
 
@@ -88,87 +124,58 @@
     }
 
     function uploadProfilePic(event) {
-      const file = event.target.files[0];
-      if (file && currentUID) {
-        const userPicRef = storage.ref(`profilePics/${currentUID}`);
+      selectedFile = event.target.files[0];
+      if (selectedFile) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          document.getElementById('profilePic').src = e.target.result;
+        };
+        reader.readAsDataURL(selectedFile);
 
-        userPicRef.put(file)
-          .then(snapshot => snapshot.ref.getDownloadURL())
-          .then(url => {
-            document.getElementById('profilePic').src = url;
-            alert("✅ Profile picture uploaded!");
-          })
-          .catch(err => {
-            console.error(err);
-            alert("❌ Failed to upload profile picture.");
-          });
+        document.getElementById('uploadBtn').style.display = 'inline-block';
       }
     }
 
+    function saveProfilePic() {
+      if (!selectedFile) return;
+
+      const uploadTask = storage.ref(`profilePics/${currentUID}`).put(selectedFile);
+
+      uploadTask.on('state_changed', 
+        (snapshot) => {
+          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+          console.log('Upload is ' + progress + '% done');
+        }, 
+        (error) => {
+          alert("Upload failed: " + error.message);
+        }, 
+        () => {
+          uploadTask.snapshot.ref.getDownloadURL().then((downloadURL) => {
+            document.getElementById('profilePic').src = downloadURL;
+            alert("✅ Profile picture uploaded successfully!");
+            document.getElementById('uploadBtn').style.display = 'none';
+          });
+        }
+      );
+    }
+
+    function loadProfilePic(uid) {
+      storage.ref(`profilePics/${uid}`).getDownloadURL()
+        .then((url) => {
+          document.getElementById('profilePic').src = url;
+        })
+        .catch((error) => {
+          console.log("No custom profile pic yet.");
+        });
+    }
+
     function generateQRCode(uid) {
-      const qr = new QRious({
+      new QRious({
         element: document.getElementById('qrCode'),
         value: window.location.origin + `/store/${uid}`,
         size: 150,
       });
     }
-
-    function loadProducts(uid) {
-      fetch(`/store/${uid}`)
-        .then(res => res.json())
-        .then(products => {
-          const container = document.getElementById('productList');
-          container.innerHTML = '';
-
-          if (!Array.isArray(products) || products.length === 0) {
-            container.innerHTML = '<p>No products yet. Start adding!</p>';
-            return;
-          }
-
-          products.forEach((product, index) => {
-            const card = document.createElement('div');
-            card.className = 'product-card';
-
-            card.innerHTML = `
-              <h4>${product.title}</h4>
-              <p>${product.description}</p>
-              ${product.image ? `<img src="${product.image}" style="width:100%; height:auto; margin-top: 0.5rem;">` : ''}
-            `;
-
-            container.appendChild(card);
-          });
-        })
-        .catch(err => {
-          console.error(err);
-          document.getElementById('productList').innerHTML = '<p>Failed to load products.</p>';
-        });
-    }
-
-    document.addEventListener('DOMContentLoaded', () => {
-      document.getElementById('addProductBtn').addEventListener('click', () => {
-        const title = prompt("Enter product title:");
-        const description = prompt("Enter product description:");
-
-        if (title && description && currentUID) {
-          fetch('/save', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              uid: currentUID,
-              products: [{ title, description, image: "" }]
-            })
-          })
-          .then(res => {
-            if (res.ok) {
-              alert("✅ Product added!");
-              loadProducts(currentUID);
-            } else {
-              alert("❌ Failed to add product.");
-            }
-          });
-        }
-      });
-    });
   </script>
 </head>
 
@@ -178,8 +185,12 @@
   <h1 id="welcome">👋 Welcome!</h1>
 
   <!-- Profile Section -->
-  <img id="profilePic" src="https://via.placeholder.com/100" alt="Profile Picture">
-  <input type="file" accept="image/*" onchange="uploadProfilePic(event)" />
+  <div style="margin-top: 1rem;">
+    <label style="font-weight: bold;">📸 Profile Picture</label><br>
+    <img id="profilePic" src="https://via.placeholder.com/100" alt="Profile Picture"><br>
+    <input type="file" accept="image/*" onchange="uploadProfilePic(event)" title="Select Profile Picture" />
+    <button id="uploadBtn" onclick="saveProfilePic()">Upload</button>
+  </div>
 
   <!-- Badges Section -->
   <div style="margin-top: 1rem;">
@@ -188,13 +199,16 @@
   </div>
 
   <!-- QR Code Section -->
-  <canvas id="qrCode"></canvas>
+  <div style="margin-top: 2rem;">
+    <label style="font-weight: bold;">🔗 Your Store QR Code:</label><br>
+    <canvas id="qrCode"></canvas>
+  </div>
 
   <!-- Products Section -->
   <div class="products">
     <h3>🛍️ Your Products:</h3>
-    <div id="productList"></div>
-    <button id="addProductBtn" style="margin-top: 1rem;">➕ Add New Product</button>
+    <div id="productList">No products yet. Start adding!</div>
+    <button id="addProductBtn">➕ Add New Product</button>
   </div>
 
   <!-- Stats Section -->
@@ -213,6 +227,5 @@
       <li>🤑 $10 from @comedyfan</li>
     </ul>
   </div>
-
 </body>
 </html>
